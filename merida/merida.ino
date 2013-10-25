@@ -14,7 +14,7 @@
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(18, PIN, NEO_GRB + NEO_KHZ800);
 CapacitiveSensor   cs_9_10 = CapacitiveSensor(9,10);
 //CapPin cPin_10 = CapPin(10);
-uint16_t state;
+uint16_t state = 0;
 long previousMillis = 0;
 
 //uint8_t myFavoriteColors[][3] = {{200,   0, 200},   // purple
@@ -64,33 +64,42 @@ void loop() {
     for(int i=0; i<strip.numPixels(); i++) strip.setPixelColor(i, 0);
     strip.show();
   } else if (state == 1) {
+    int j = random(strip.numPixels());
     for(uint16_t i=0; i<63; i++) {
-        strip.setPixelColor(0, strip.Color(0, 0, i));
+        strip.setPixelColor(j, strip.Color(0, 0, i));
         strip.show();
         delayWhileChecking(20);
         if (state != 1) return;
     }
     
-    delayWhileChecking(500);
+    delayWhileChecking(1000);
     if (state != 1) return;
   
     for(uint16_t i=63; i<255; i++) {
-        strip.setPixelColor(0, strip.Color(0, 0, i));
+        strip.setPixelColor(j, strip.Color(0, 0, i));
         strip.show();
         delay(1);
     }
     
     for(uint16_t i = 255; i > 0; i--) {
-        strip.setPixelColor(0, strip.Color(0, 0, i));
+        strip.setPixelColor(j, strip.Color(0, 0, i));
         strip.show();
         delay(1);
     }
-    strip.setPixelColor(0, strip.Color(0, 0, 0));
+    strip.setPixelColor(j, strip.Color(0, 0, 0));
     strip.show();
   } else if (state == 2) {
+    for(int i=0; i<strip.numPixels(); i++) strip.setPixelColor(i, 0);
+    strip.show();
+
     flashRandom(5, 1);  // first number is 'wait' delay, shorter num == shorter twinkle
     flashRandom(5, 3);  // second number is how many neopixels to simultaneously light up
     flashRandom(5, 2);
+  } else if (state == 3) {
+    for(int i=0; i<strip.numPixels(); i++) strip.setPixelColor(i, 0);
+    strip.show();
+
+    rainbowCycle(20);
   }
 }
 
@@ -107,27 +116,36 @@ void delayWhileChecking(unsigned int interval) {
 }
 
 uint16_t checkForTouch() {
+  uint16_t res = state;
 //  long sense = cPin_10.readPin(2000);
   long sense = cs_9_10.capacitiveSensor(30);
 //  Serial.print(state);
 //  Serial.print("\t");
 //  Serial.println(sense);
   if (sense > 2500) {
-    strip.setPixelColor(0, strip.Color(24, 24, 24));
-    strip.show();
-    delay(15);
+    if (state == 0) {
+      res = 1;
+    } else if (state == 1) {
+      res = 2;
+    } else if (state == 2) {
+      res = 3;
+    } else {
+      res = 0;
+    }
     strip.setPixelColor(0, 0);
     strip.show();
-    delay(500);
-    if (state == 0) {
-      return 1;
-    } else if (state == 1) {
-      return 2;
-    } else {
-      return 0;
+    delay(200);
+    for (int i=0; i < (res+1); i++) {
+      strip.setPixelColor(0, strip.Color(24, 24, 24));
+      strip.show();
+      delay(50);
+      strip.setPixelColor(0, 0);
+      strip.show();
+      delay(300);
     }
+    delay(500);
   }
-  return state;
+  return res;
 }
 
 void flashRandom(int wait, uint8_t howmany) {
@@ -167,3 +185,44 @@ void flashRandom(int wait, uint8_t howmany) {
   // LEDs will be off when done (they are faded to 0)
 }
 
+void rainbow(uint8_t wait) {
+  uint16_t i, j;
+
+  for(j=0; j<256; j++) {
+    for(i=0; i<strip.numPixels(); i++) {
+      strip.setPixelColor(i, Wheel((i+j) & 255));
+    }
+    strip.show();
+    delay(wait);
+  }
+}
+
+// Slightly different, this makes the rainbow equally distributed throughout
+void rainbowCycle(uint8_t wait) {
+  uint16_t i, j;
+  uint16_t initState = state;
+
+  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
+    for(i=0; i< strip.numPixels(); i++) {
+      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    }
+    strip.show();
+    state = checkForTouch();
+    if (state != initState) break;
+    delay(wait);
+  }
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+   WheelPos -= 85;
+   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+   WheelPos -= 170;
+   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
